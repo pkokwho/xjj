@@ -603,8 +603,8 @@
       const isTouchDevice =
         "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
-      const joystickSensitivity = 0.55;
-      const playerSpeedMultiplier = 1.0;
+      const joystickSensitivity = isTouchDevice ? 0.75 : 0.55;
+      const playerSpeedMultiplier = isTouchDevice ? 1.3 : 1.0;
 
       function resizeCanvas() {
         dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -618,7 +618,7 @@
         baseHeight = window.innerHeight;
 
         const minDim = Math.min(baseWidth, baseHeight);
-        scale = Math.max(0.5, Math.min(1.5, minDim / 800));
+        scale = Math.max(0.4, Math.min(1.5, minDim / (isTouchDevice ? 950 : 800)));
       }
 
       resizeCanvas();
@@ -1286,39 +1286,37 @@
           );
         });
 
-        // 玩家子弹打掉敌人子弹
-        const playerBullets = [];
-        const enemyBullets = [];
-        bullets.forEach(bullet => {
-          if (bullet.type === "player" || bullet.type === "missile") {
-            playerBullets.push(bullet);
-          } else if (bullet.type === "enemy") {
-            enemyBullets.push(bullet);
-          }
-        });
-
-        // 检测碰撞
-        const remainingBullets = [];
-        bullets.forEach(bullet => {
-          let shouldKeep = true;
-          if (bullet.type === "player" || bullet.type === "missile") {
-            // 玩家子弹，检查是否碰到敌人子弹
-            for (const enemyBullet of enemyBullets) {
-              if (checkCollision(bullet, enemyBullet)) {
-                shouldKeep = false;
-                createParticles(bullet.x, bullet.y, "#0ff", 4);
-                enemyBullet.hit = true;
-                break;
-              }
+        // 玩家子弹打掉敌人子弹 - 修复版
+        const hitEnemyBulletIndices = new Set();
+        const hitPlayerBulletIndices = new Set();
+        
+        for (let i = 0; i < bullets.length; i++) {
+          const bullet1 = bullets[i];
+          if (bullet1.type !== "player" && bullet1.type !== "missile") continue;
+          
+          for (let j = 0; j < bullets.length; j++) {
+            const bullet2 = bullets[j];
+            if (bullet2.type !== "enemy") continue;
+            if (i === j) continue;
+            if (hitEnemyBulletIndices.has(j) || hitPlayerBulletIndices.has(i)) continue;
+            
+            if (checkCollision(bullet1, bullet2)) {
+              hitPlayerBulletIndices.add(i);
+              hitEnemyBulletIndices.add(j);
+              createParticles(
+                (bullet1.x + bullet2.x) / 2,
+                (bullet1.y + bullet2.y) / 2,
+                "#ff0",
+                6
+              );
             }
-          } else if (bullet.type === "enemy" && bullet.hit) {
-            shouldKeep = false;
           }
-          if (shouldKeep) {
-            remainingBullets.push(bullet);
-          }
-        });
-        bullets = remainingBullets;
+        }
+        
+        // 过滤掉被击中的子弹
+        bullets = bullets.filter((_, index) => 
+          !hitPlayerBulletIndices.has(index) && !hitEnemyBulletIndices.has(index)
+        );
 
         enemies = enemies.filter((enemy) => {
           enemy.y += enemy.speed * timeSlow;
