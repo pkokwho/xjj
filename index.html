@@ -603,8 +603,8 @@
       const isTouchDevice =
         "ontouchstart" in window || navigator.maxTouchPoints > 0;
 
-      const joystickSensitivity = 0.65;
-      const playerSpeedMultiplier = 1.0;
+      const joystickSensitivity = 0.6;
+      const playerSpeedMultiplier = 0.8;
 
       function resizeCanvas() {
         dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -1439,6 +1439,8 @@
         });
 
         if (boss) {
+          let bossDied = false;
+          
           if (boss.entering) {
             boss.y += 1.7 * scale;
             if (boss.y >= 45 * scale) {
@@ -1465,94 +1467,97 @@
           bullets = bullets.filter((bullet) => {
             if (bullet.type !== "player" && bullet.type !== "missile")
               return true;
-            if (checkCollision(bullet, boss)) {
+            if (boss && checkCollision(bullet, boss)) {
               boss.health -= bullet.damage;
               createParticles(bullet.x, bullet.y, "#ff0", 5);
               if (boss.health <= 0) {
-                createParticles(
-                  boss.x + boss.width / 2,
-                  boss.y + boss.height / 2,
-                  "#f80",
-                  40,
-                );
-                score += 600 * wave;
-                addExp(200);
-                wave++;
-                enemiesKilled = 0;
-                boss = null;
-                updateUI();
-                return false;
+                bossDied = true;
               }
               return false;
             }
             return true;
           });
 
-          if (
-            !player.shieldActive &&
-            !invincible &&
-            checkCollision(player, boss)
-          ) {
-            lives--;
-            invincible = true;
-            invincibleTimer = 1500;
+          if (bossDied) {
             createParticles(
-              player.x + player.scaledWidth / 2,
-              player.y + player.scaledHeight / 2,
-              "#f00",
-              14,
+              boss.x + boss.width / 2,
+              boss.y + boss.height / 2,
+              "#f80",
+              40,
             );
+            score += 600 * wave;
+            addExp(200);
+            wave++;
+            enemiesKilled = 0;
+            boss = null;
             updateUI();
-            if (lives <= 0) {
-              gameOver();
+          } else if (boss) {
+            if (
+              !player.shieldActive &&
+              !invincible &&
+              checkCollision(player, boss)
+            ) {
+              lives--;
+              invincible = true;
+              invincibleTimer = 1500;
+              createParticles(
+                player.x + player.scaledWidth / 2,
+                player.y + player.scaledHeight / 2,
+                "#f00",
+                14,
+              );
+              updateUI();
+              if (lives <= 0) {
+                gameOver();
+              }
             }
+
+            ctx.fillStyle = "#333";
+            ctx.fillRect(
+              40 * scale,
+              5 * scale,
+              baseWidth - 80 * scale,
+              17 * scale,
+            );
+            ctx.fillStyle = boss.phase === 2 ? "#f00" : "#f80";
+            ctx.fillRect(
+              40 * scale,
+              5 * scale,
+              (baseWidth - 80 * scale) * (boss.health / boss.maxHealth),
+              17 * scale,
+            );
+            ctx.strokeStyle = "#fff";
+            ctx.strokeRect(
+              40 * scale,
+              5 * scale,
+              baseWidth - 80 * scale,
+              17 * scale,
+            );
+            ctx.fillStyle = "#fff";
+            ctx.font = `${13 * scale}px Arial`;
+            ctx.textAlign = "center";
+            ctx.fillText("BOSS", baseWidth / 2, 18 * scale);
+
+            ctx.save();
+            ctx.translate(boss.x + boss.width / 2, boss.y + boss.height / 2);
+            ctx.fillStyle = boss.phase === 2 ? "#800" : "#400";
+            ctx.beginPath();
+            ctx.moveTo(-75 * scale, 48 * scale);
+            ctx.lineTo(-55 * scale, -38 * scale);
+            ctx.lineTo(0, -55 * scale);
+            ctx.lineTo(55 * scale, -38 * scale);
+            ctx.lineTo(75 * scale, 48 * scale);
+            ctx.lineTo(38 * scale, 28 * scale);
+            ctx.lineTo(0, 48 * scale);
+            ctx.lineTo(-38 * scale, 28 * scale);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = boss.phase === 2 ? "#f00" : "#f80";
+            ctx.beginPath();
+            ctx.arc(0, 0, 18 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
           }
-
-          ctx.fillStyle = "#333";
-          ctx.fillRect(
-            40 * scale,
-            5 * scale,
-            baseWidth - 80 * scale,
-            17 * scale,
-          );
-          ctx.fillStyle = boss.phase === 2 ? "#f00" : "#f80";
-          ctx.fillRect(
-            40 * scale,
-            5 * scale,
-            (baseWidth - 80 * scale) * (boss.health / boss.maxHealth),
-            17 * scale,
-          );
-          ctx.strokeStyle = "#fff";
-          ctx.strokeRect(
-            40 * scale,
-            5 * scale,
-            baseWidth - 80 * scale,
-            17 * scale,
-          );
-          ctx.fillStyle = "#fff";
-          ctx.font = `${13 * scale}px Arial`;
-          ctx.textAlign = "center";
-          ctx.fillText("BOSS", baseWidth / 2, 18 * scale);
-
-          ctx.save();
-          ctx.translate(boss.x + boss.width / 2, boss.y + boss.height / 2);
-          ctx.fillStyle = boss.phase === 2 ? "#800" : "#400";
-          ctx.beginPath();
-          ctx.moveTo(-75 * scale, 48 * scale);
-          ctx.lineTo(-55 * scale, -38 * scale);
-          ctx.lineTo(0, -55 * scale);
-          ctx.lineTo(55 * scale, -38 * scale);
-          ctx.lineTo(75 * scale, 48 * scale);
-          ctx.lineTo(38 * scale, 28 * scale);
-          ctx.lineTo(0, 48 * scale);
-          ctx.lineTo(-38 * scale, 28 * scale);
-          ctx.closePath();
-          ctx.fill();
-          ctx.fillStyle = boss.phase === 2 ? "#f00" : "#f80";
-          ctx.beginPath();
-          ctx.arc(0, 0, 18 * scale, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.restore();
         }
 
         powerUps = powerUps.filter((powerUp) => {
