@@ -111,6 +111,7 @@
         justify-content: center;
         align-items: center;
         backdrop-filter: blur(4px);
+        position: relative;
       }
 
       .weapon-btn.active {
@@ -126,6 +127,22 @@
 
       .weapon-btn:active:not(:disabled) {
         transform: scale(0.95);
+      }
+
+      .weapon-btn .level-badge {
+        position: absolute;
+        bottom: 2px;
+        right: 2px;
+        background: #ff0;
+        color: #000;
+        font-size: 10px;
+        font-weight: bold;
+        border-radius: 50%;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
 
       #skillPanel {
@@ -511,15 +528,19 @@
       <div id="weaponPanel">
         <button class="weapon-btn active" data-weapon="laser" title="激光">
           ⚡
+          <span class="level-badge" id="laser-level">1</span>
         </button>
         <button class="weapon-btn" data-weapon="missile" title="导弹" disabled>
           🚀
+          <span class="level-badge" id="missile-level">1</span>
         </button>
         <button class="weapon-btn" data-weapon="spread" title="散射" disabled>
           🔱
+          <span class="level-badge" id="spread-level">1</span>
         </button>
         <button class="weapon-btn" data-weapon="laser2" title="双激光" disabled>
           ⚡⚡
+          <span class="level-badge" id="laser2-level">1</span>
         </button>
       </div>
 
@@ -540,7 +561,7 @@
           <p><strong>🎯 技能系统</strong></p>
           <p>🛡️护盾 | 💣炸弹 | ⏱️减速</p>
           <p><strong>✨ 特色系统</strong></p>
-          <p>连击加成 | 升级强化 | Boss战 | 道具掉落</p>
+          <p>连击加成 | 武器升级 | Boss战 | 道具掉落</p>
         </div>
         <button class="btn" id="startBtn">开始游戏</button>
       </div>
@@ -618,7 +639,10 @@
         baseHeight = window.innerHeight;
 
         const minDim = Math.min(baseWidth, baseHeight);
-        scale = Math.max(0.4, Math.min(1.5, minDim / (isTouchDevice ? 950 : 800)));
+        scale = Math.max(
+          0.4,
+          Math.min(1.5, minDim / (isTouchDevice ? 950 : 800)),
+        );
       }
 
       resizeCanvas();
@@ -662,6 +686,7 @@
         shieldActive: false,
         shieldTimer: 0,
         weaponsUnlocked: ["laser"],
+        weaponLevel: { laser: 1, missile: 1, spread: 1, laser2: 1 },
         get scaledWidth() {
           return this.width * scale;
         },
@@ -737,6 +762,7 @@
         player.fireRate = 150;
         player.weapon = "laser";
         player.weaponsUnlocked = ["laser"];
+        player.weaponLevel = { laser: 1, missile: 1, spread: 1, laser2: 1 };
         Object.keys(skills).forEach(
           (skill) => (skills[skill].lastUsed = -skills[skill].cooldown),
         );
@@ -759,6 +785,11 @@
           const weapon = btn.dataset.weapon;
           btn.disabled = !player.weaponsUnlocked.includes(weapon);
           btn.classList.toggle("active", weapon === player.weapon);
+          // 更新等级徽章
+          const levelBadge = document.getElementById(`${weapon}-level`);
+          if (levelBadge) {
+            levelBadge.textContent = player.weaponLevel[weapon];
+          }
         });
       }
 
@@ -806,8 +837,15 @@
       }
 
       function createPowerUp(x, y) {
-        if (Math.random() < 0.22) {
-          const types = ["health", "fireRate", "score", "exp", "shield"];
+        if (Math.random() < 0.3) {
+          const types = [
+            "health",
+            "fireRate",
+            "score",
+            "exp",
+            "shield",
+            "weaponUpgrade",
+          ];
           powerUps.push({
             x,
             y,
@@ -927,60 +965,144 @@
           speed: 10.5 * scale,
         };
 
+        const wLevel = player.weaponLevel[player.weapon] || 1;
+        const extraDamage = Math.floor(wLevel / 2);
+
         switch (player.weapon) {
           case "laser":
             bullets.push({
               ...bulletBase,
-              width: 4 * scale,
-              height: 17 * scale,
-              damage: 1 + Math.floor(level / 5),
+              width: (4 + wLevel * 0.5) * scale,
+              height: (17 + wLevel * 2) * scale,
+              damage: 1 + Math.floor(level / 5) + extraDamage,
               type: "player",
-              color: "#0ff",
+              color: wLevel >= 3 ? "#0ff" : wLevel >= 2 ? "#0ff" : "#0ff",
             });
+            // 2级以上额外子弹
+            if (wLevel >= 2) {
+              bullets.push({
+                ...bulletBase,
+                width: (3 + wLevel * 0.3) * scale,
+                height: (14 + wLevel) * scale,
+                damage: Math.floor(
+                  (1 + Math.floor(level / 5) + extraDamage) * 0.6,
+                ),
+                type: "player",
+                color: "#8ff",
+                x: bulletBase.x - 8 * scale,
+              });
+              bullets.push({
+                ...bulletBase,
+                width: (3 + wLevel * 0.3) * scale,
+                height: (14 + wLevel) * scale,
+                damage: Math.floor(
+                  (1 + Math.floor(level / 5) + extraDamage) * 0.6,
+                ),
+                type: "player",
+                color: "#8ff",
+                x: bulletBase.x + 8 * scale,
+              });
+            }
             break;
           case "missile":
             bullets.push({
               ...bulletBase,
-              width: 8 * scale,
-              height: 17 * scale,
-              damage: 3 + Math.floor(level / 4),
+              width: (8 + wLevel) * scale,
+              height: (17 + wLevel * 2) * scale,
+              damage: 3 + Math.floor(level / 4) + extraDamage,
               type: "missile",
               color: "#f80",
             });
-            break;
-          case "spread":
-            for (let i = -1; i <= 1; i++) {
+            if (wLevel >= 2) {
               bullets.push({
                 ...bulletBase,
-                width: 5 * scale,
-                height: 13 * scale,
-                damage: 1 + Math.floor(level / 6),
+                width: (6 + wLevel * 0.5) * scale,
+                height: (14 + wLevel) * scale,
+                damage: Math.floor(
+                  (3 + Math.floor(level / 4) + extraDamage) * 0.7,
+                ),
+                type: "missile",
+                color: "#fa0",
+                x: bulletBase.x - 15 * scale,
+              });
+              bullets.push({
+                ...bulletBase,
+                width: (6 + wLevel * 0.5) * scale,
+                height: (14 + wLevel) * scale,
+                damage: Math.floor(
+                  (3 + Math.floor(level / 4) + extraDamage) * 0.7,
+                ),
+                type: "missile",
+                color: "#fa0",
+                x: bulletBase.x + 15 * scale,
+              });
+            }
+            break;
+          case "spread":
+            const spreadCount = 2 + Math.min(wLevel, 3);
+            for (
+              let i = -Math.floor(spreadCount / 2);
+              i <= Math.floor(spreadCount / 2);
+              i++
+            ) {
+              bullets.push({
+                ...bulletBase,
+                width: (5 + wLevel * 0.4) * scale,
+                height: (13 + wLevel) * scale,
+                damage:
+                  1 + Math.floor(level / 6) + Math.floor(extraDamage * 0.8),
                 type: "player",
                 color: "#f0f",
-                vx: i * 2.2 * scale,
-                x: bulletBase.x + i * 11 * scale,
+                vx: i * (1.8 + wLevel * 0.2) * scale,
+                x: bulletBase.x + i * 10 * scale,
               });
             }
             break;
           case "laser2":
             bullets.push({
               ...bulletBase,
-              width: 4 * scale,
-              height: 17 * scale,
-              damage: 1 + Math.floor(level / 5),
+              width: (4 + wLevel * 0.5) * scale,
+              height: (17 + wLevel * 2) * scale,
+              damage: 1 + Math.floor(level / 5) + extraDamage,
               type: "player",
               color: "#0ff",
-              x: bulletBase.x - 11 * scale,
+              x: bulletBase.x - 14 * scale,
             });
             bullets.push({
               ...bulletBase,
-              width: 4 * scale,
-              height: 17 * scale,
-              damage: 1 + Math.floor(level / 5),
+              width: (4 + wLevel * 0.5) * scale,
+              height: (17 + wLevel * 2) * scale,
+              damage: 1 + Math.floor(level / 5) + extraDamage,
               type: "player",
               color: "#0ff",
-              x: bulletBase.x + 11 * scale,
+              x: bulletBase.x + 14 * scale,
             });
+            if (wLevel >= 2) {
+              bullets.push({
+                ...bulletBase,
+                width: (3 + wLevel * 0.3) * scale,
+                height: (15 + wLevel) * scale,
+                damage: Math.floor(
+                  (1 + Math.floor(level / 5) + extraDamage) * 0.7,
+                ),
+                type: "player",
+                color: "#f0f",
+                x: bulletBase.x - 24 * scale,
+                vx: -0.8 * scale,
+              });
+              bullets.push({
+                ...bulletBase,
+                width: (3 + wLevel * 0.3) * scale,
+                height: (15 + wLevel) * scale,
+                damage: Math.floor(
+                  (1 + Math.floor(level / 5) + extraDamage) * 0.7,
+                ),
+                type: "player",
+                color: "#f0f",
+                x: bulletBase.x + 24 * scale,
+                vx: 0.8 * scale,
+              });
+            }
             break;
         }
       }
@@ -1289,17 +1411,18 @@
         // 玩家子弹打掉敌人子弹 - 修复版
         const hitEnemyBulletIndices = new Set();
         const hitPlayerBulletIndices = new Set();
-        
+
         for (let i = 0; i < bullets.length; i++) {
           const bullet1 = bullets[i];
           if (bullet1.type !== "player" && bullet1.type !== "missile") continue;
-          
+
           for (let j = 0; j < bullets.length; j++) {
             const bullet2 = bullets[j];
             if (bullet2.type !== "enemy") continue;
             if (i === j) continue;
-            if (hitEnemyBulletIndices.has(j) || hitPlayerBulletIndices.has(i)) continue;
-            
+            if (hitEnemyBulletIndices.has(j) || hitPlayerBulletIndices.has(i))
+              continue;
+
             if (checkCollision(bullet1, bullet2)) {
               hitPlayerBulletIndices.add(i);
               hitEnemyBulletIndices.add(j);
@@ -1307,15 +1430,17 @@
                 (bullet1.x + bullet2.x) / 2,
                 (bullet1.y + bullet2.y) / 2,
                 "#ff0",
-                6
+                6,
               );
             }
           }
         }
-        
+
         // 过滤掉被击中的子弹
-        bullets = bullets.filter((_, index) => 
-          !hitPlayerBulletIndices.has(index) && !hitEnemyBulletIndices.has(index)
+        bullets = bullets.filter(
+          (_, index) =>
+            !hitPlayerBulletIndices.has(index) &&
+            !hitEnemyBulletIndices.has(index),
         );
 
         enemies = enemies.filter((enemy) => {
@@ -1377,12 +1502,28 @@
                 }
 
                 combo++;
-                comboTimer = 2300;
+                comboTimer = 2300 + Math.min(combo * 50, 1000);
                 if (combo > maxCombo) maxCombo = combo;
-                const comboBonus = 1 + Math.floor(combo / 5) * 0.5;
+                const comboBonus =
+                  1 +
+                  Math.floor(combo / 3) * 0.3 +
+                  Math.floor(combo / 10) * 0.5;
                 score += enemy.points * comboBonus;
-                addExp(enemy.points * 0.5);
-                if (combo % 5 === 0) showCombo();
+                addExp(enemy.points * (0.5 + Math.min(combo * 0.02, 0.5)));
+                if (combo % 5 === 0) {
+                  showCombo();
+                  // 每5连击给个小奖励
+                  if (combo % 10 === 0 && Math.random() < 0.5) {
+                    powerUps.push({
+                      x: enemy.x + enemy.width / 2,
+                      y: enemy.y + enemy.height / 2,
+                      type: "score",
+                      size: 22 * scale,
+                      speed: 1.6 * scale,
+                      angle: 0,
+                    });
+                  }
+                }
                 enemiesKilled++;
                 totalKills++;
                 updateUI();
@@ -1472,7 +1613,7 @@
 
         if (boss) {
           let bossDied = false;
-          
+
           if (boss.entering) {
             boss.y += 1.7 * scale;
             if (boss.y >= 45 * scale) {
@@ -1612,14 +1753,24 @@
                 player.fireRate = Math.max(45, player.fireRate - 14);
                 break;
               case "score":
-                score += 140;
+                score += 140 + combo * 10;
                 break;
               case "exp":
-                addExp(45);
+                addExp(45 + combo * 5);
                 break;
               case "shield":
                 player.shieldActive = true;
-                player.shieldTimer = 2000;
+                player.shieldTimer = 3000;
+                break;
+              case "weaponUpgrade":
+                const currentWeapon = player.weapon;
+                if (player.weaponLevel[currentWeapon] < 5) {
+                  player.weaponLevel[currentWeapon]++;
+                  showAchievement(
+                    `🔫 ${currentWeapon} 升级到 Lv.${player.weaponLevel[currentWeapon]}!`,
+                  );
+                  updateWeaponButtons();
+                }
                 break;
             }
             createParticles(powerUp.x, powerUp.y, "#0f0", 6);
@@ -1632,23 +1783,38 @@
 
         for (let i = bullets.length - 1; i >= 0; i--) {
           const bullet = bullets[i];
-          if (bullet.type === "enemy" && !player.shieldActive && !invincible) {
-            if (checkCollision(player, bullet)) {
-              lives--;
-              invincible = true;
-              invincibleTimer = 1500;
-              createParticles(
-                player.x + player.scaledWidth / 2,
-                player.y + player.scaledHeight / 2,
-                "#f00",
-                14,
+          if (bullet.type === "enemy") {
+            // 护盾吸收子弹
+            if (player.shieldActive) {
+              const dist = Math.sqrt(
+                Math.pow(bullet.x - (player.x + player.scaledWidth / 2), 2) +
+                  Math.pow(bullet.y - (player.y + player.scaledHeight / 2), 2),
               );
-              bullets.splice(i, 1);
-              updateUI();
-              if (lives <= 0) {
-                gameOver();
+              if (dist < 45 * scale) {
+                createParticles(bullet.x, bullet.y, "#0ff", 4);
+                bullets.splice(i, 1);
+                continue;
               }
-              break;
+            }
+            // 正常受伤
+            if (!player.shieldActive && !invincible) {
+              if (checkCollision(player, bullet)) {
+                lives--;
+                invincible = true;
+                invincibleTimer = 1500;
+                createParticles(
+                  player.x + player.scaledWidth / 2,
+                  player.y + player.scaledHeight / 2,
+                  "#f00",
+                  14,
+                );
+                bullets.splice(i, 1);
+                updateUI();
+                if (lives <= 0) {
+                  gameOver();
+                }
+                break;
+              }
             }
           }
         }
@@ -1835,6 +2001,19 @@
           ctx.save();
           ctx.translate(powerUp.x, powerUp.y);
           ctx.rotate(powerUp.angle);
+
+          // 添加道具发光效果
+          const glowColor =
+            powerUp.type === "weaponUpgrade"
+              ? "#ff0"
+              : powerUp.type === "shield"
+                ? "#0ff"
+                : "#0f0";
+          ctx.beginPath();
+          ctx.arc(0, 0, powerUp.size * 0.8, 0, Math.PI * 2);
+          ctx.fillStyle = glowColor + "30";
+          ctx.fill();
+
           ctx.font = `${22 * scale}px Arial`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
@@ -1853,6 +2032,9 @@
               break;
             case "shield":
               ctx.fillText("🛡️", 0, 0);
+              break;
+            case "weaponUpgrade":
+              ctx.fillText("🔫", 0, 0);
               break;
           }
           ctx.restore();
